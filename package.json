@@ -1,0 +1,18 @@
+{
+  "name": "my-youtube",
+  "version": "1.0.0",
+  "description": "my first backend",
+  "keywords": [
+    "My",
+    "first",
+    "one-",
+    "excited"
+  ],
+  "license": "ISC",
+  "author": "Krishika ofc",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
