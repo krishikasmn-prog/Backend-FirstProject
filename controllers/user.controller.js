@@ -2,16 +2,15 @@ import {asyncHandler} from "../utils/asyncHandler.js";
 import {ApiError} from "../utils/ApiError.js";
 import {User} from "../models/user.models.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
 const registerUser = asyncHandler(async (req,res)=>{
-    res.status(200).json({
-        message: "ok"
-    })
+ 
 
-    const {fullName, email , userName, password} = req.body;
+    const {fullName, email , username, password} = req.body;
     console.log("email:", email)
 
     if(
-        [fullName, email , userName, password].some((field)=>
+        [fullName, email , username, password].some((field)=>
         field?.trim()=== "" )
     
     ){
@@ -19,7 +18,7 @@ const registerUser = asyncHandler(async (req,res)=>{
         
     }
    const existedUser= await User.findOne({
-        $or: [{userName},{email}]
+        $or: [{username},{email}]
     })
 
     if(existedUser){
@@ -29,10 +28,11 @@ const registerUser = asyncHandler(async (req,res)=>{
 
 
 
+console.log("REQ.FILES =", req.files);
 
-    const avatarLocalPath = req.files?.avatar[0].path ;
-    const coverImageLocalPath = req.files?.coverImage[0].path;
 
+    const avatarLocalPath = req.files?.avatar?.[0]?.path;
+const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
     if(!avatarLocalPath){
         throw new ApiError(400 , "Avatar File is Required!!")
     
@@ -51,7 +51,7 @@ const registerUser = asyncHandler(async (req,res)=>{
     password,
     email,
     coverImage: coverImage?.url || "",
-    userName:userName.toLowerCase()
+    username: username.toLowerCase()
    })
 //select Specifies which document fields to include or exclude (also known as the query "projection")
    const createdUser= await User.findById(user._id).select("-password -refreshToken")
@@ -65,6 +65,79 @@ const registerUser = asyncHandler(async (req,res)=>{
    )
 })
 
+const generateAccessTokenandRefreshTokens = async (userId) => {
+    try {
+        const user = await User.findById(userId);
+        const accessToken = user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
 
+        user.refreshToken = refreshToken;
+        await user.save({ validateBeforeSave: false });
 
-export { registerUser }
+        return { accessToken, refreshToken };
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong in generating Access and Refresh tokens");
+    }
+};
+
+const loginUser = asyncHandler(async (req, res) => {
+    const { email, username, password } = req.body;
+
+    if (!(username || email)) {
+        throw new ApiError(400, "Username or email is required");
+    }
+
+    const user = await User.findOne({
+        $or: [{ username }, { email }]
+    });
+
+    if (!user) {
+        throw new ApiError(404, "User doesn't exist");
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(password);
+
+    if (!isPasswordValid) {
+        throw new ApiError(401, "Invalid user credentials");
+    }
+
+    const { accessToken, refreshToken } = await generateAccessTokenandRefreshTokens(user._id);
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken");
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    };
+
+    return res
+        .status(200)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
+        .json(
+            new ApiResponse(200, { user: loggedInUser, accessToken, refreshToken }, "User logged in successfully")
+        );
+});
+const logoutUser = asyncHandler(async(req,res)=>{
+      
+    User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set : {
+                refreshToken : undefined
+            }},
+            {
+                new : true
+            },
+) 
+
+options = {
+        httpOnly: true,
+        secure: true
+    };
+
+   return res.status(200).
+   clearCookie("accessToken" , options)
+   clearCookie("refreshToken" , options).
+   json(new ApiResponse (200, {}, " User Loggged Out"))
+})
+export { registerUser, loginUser ,logoutUser};

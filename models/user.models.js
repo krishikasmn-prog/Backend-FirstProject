@@ -15,7 +15,7 @@ const userSchema = new Schema({
         unique: true,
         lowercase: true
     },
-    fullname: {
+    fullName: {
         type: String,
         required: [true, "FullName is required"],
         
@@ -50,7 +50,7 @@ userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) return next();
 
     this.password = await bcrypt.hash(this.password, 10)
-    next();
+    next;
 
 })
 // it is the bycrpt method we have made this is password correct method 
